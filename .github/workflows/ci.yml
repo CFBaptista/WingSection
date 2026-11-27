@@ -1,0 +1,159 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Check formatting and lint
+    runs-on: ubuntu-26.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@v10.4.0
+        with:
+          python-version: '3.13'
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked --group dev
+
+      - name: Check formatting
+        run: uv run ruff format --check src tests
+
+      - name: Run linter
+        run: uv run ruff check src tests
+
+  static-analysis:
+    name: Static analysis (python-${{ matrix.python-version }})
+    runs-on: ubuntu-26.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - '3.13'
+          - '3.14'
+          - '3.15'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@v10.4.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked --group dev
+
+      - name: Run static analyzer
+        run: uv run ty check
+
+  build:
+    name: Build package
+    needs: [lint, static-analysis]
+    runs-on: ubuntu-26.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@v10.4.0
+        with:
+          python-version: '3.13'
+          enable-cache: true
+
+      - name: Build package
+        run: uv build --out-dir dist
+
+      - name: Upload distribution artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  test:
+    name: Test (${{ matrix.os }} | python-${{ matrix.python-version }} | ${{ matrix.package-format }})
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-26.04
+          - windows-latest
+          - macos-latest
+        python-version:
+          - '3.13'
+          - '3.14'
+          - '3.15'
+        package-format:
+          - wheel
+          - sdist
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@v10.4.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+
+      - name: Install test dependencies
+        run: uv sync --locked --group dev --no-install-project
+
+      - name: Download distribution artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      - name: Install built wheel
+        if: matrix.package-format == 'wheel'
+        run: uv pip install --no-deps dist/*.whl
+
+      - name: Install built source distribution
+        if: matrix.package-format == 'sdist'
+        run: uv pip install --no-deps dist/*.tar.gz
+
+      - name: Run test suite
+        run: >-
+          uv run --no-sync pytest
+          --cov=wingsection
+          --cov-report=term-missing
+          --cov-fail-under=90
+          --junitxml=test-reports/junit.xml
+          --html=test-reports/report.html
+          --self-contained-html
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-report-${{ matrix.os }}-python-${{ matrix.python-version }}-${{ matrix.package-format }}
+          path: test-reports/
+          if-no-files-found: error

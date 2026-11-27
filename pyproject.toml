@@ -1,0 +1,91 @@
+[project]
+name = "wingsection"
+version = "0.1.0.dev0"
+description = "Design analysis and optimization toolkit for airfoils"
+keywords = ["aerodynamics", "aerofoil", "aerospace", "airfoil", "cfd", "wing"]
+readme = "README.md"
+authors = [
+    { name = "Carlos Fernando Baptista", email = "cfd.baptista@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "numpy>=2.5.5",
+    "tyro>=1.0.17",
+]
+
+[project.scripts]
+wingsection = "wingsection.main:main"
+
+[build-system]
+requires = ["uv_build>=0.13.9,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "pytest-cov>=7.1.0",
+    "pytest-html>=4.2.0",
+    "ruff>=0.17.6",
+    "ty>=0.0.107",
+]
+
+[tool.pytest]
+testpaths = ["tests"]
+addopts = [
+    "-rA", 
+    "--log-cli-level=DEBUG",
+    "--strict-config",
+    "--strict-markers", 
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+docstring-code-format = true
+docstring-code-line-length = 100
+line-ending = "lf"
+
+[tool.ruff.lint]
+select = [
+    "ALL"
+]
+ignore = [
+    "D100", # Missing docstring in public module
+    "D104", # Missing docstring in public package
+    "D105", # Missing docstring in magic method
+    "CPY001", # Missing copyright notice
+    "RET504", # Unnecessary assignment before return statement
+    "S101", # Use of assert detected
+    "TC001", # Move first-party imports to type-checking block
+    "TC002", # Make third-party library imports lazy
+    "TC003", # Make standard library import lazy
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "D103", # Missing docstring in public function
+    "SLF001", # Private member access
+]
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "single"
+
+[tool.ruff.lint.isort]
+known-first-party = ["wingsection"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ty.src]
+include = ["src", "tests"]
+exclude = ["build"]
+
+[tool.ty.rules]
+possibly-missing-import = "error"
+unused-ignore-comment = "warn"
+
+[tool.ty.terminal]
+error-on-warning = true
